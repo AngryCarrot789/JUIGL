@@ -77,7 +77,7 @@ public class Window {
         this.width = width;
         this.height = height;
         this.setupViewport();
-        Main.onReDrawApplicationWindow();
+        Main.onWindowSizeChanged();
     }
 
     private void setupViewport() {

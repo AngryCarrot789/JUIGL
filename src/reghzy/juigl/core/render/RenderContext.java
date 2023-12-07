@@ -1,7 +1,9 @@
 package reghzy.juigl.core.render;
 
 import org.lwjgl.opengl.GL11;
+import reghzy.juigl.utils.ColourUtils;
 
+import java.awt.*;
 import java.util.ArrayList;
 
 public class RenderContext {
@@ -11,6 +13,14 @@ public class RenderContext {
     public RenderContext(float zDepth) {
         this.renderData = new ArrayList<>();
         this.zDepth = zDepth;
+    }
+
+    public void drawRect(double x, double y, double width, double height, Color colour) {
+        float r = ColourUtils.rgbToFloat(colour.getRed());
+        float g = ColourUtils.rgbToFloat(colour.getGreen());
+        float b = ColourUtils.rgbToFloat(colour.getBlue());
+        float a = ColourUtils.rgbToFloat(colour.getAlpha());
+        drawRect(x, y, width, height, r, g, b, a);
     }
 
     public void drawRect(double x, double y, double width, double height, float r, float g, float b, float a) {

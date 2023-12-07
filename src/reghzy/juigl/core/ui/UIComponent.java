@@ -1,13 +1,16 @@
 package reghzy.juigl.core.ui;
 
 import org.joml.Vector2d;
+import org.lwjgl.opengl.GL11;
 import reghzy.juigl.Main;
 import reghzy.juigl.core.LayoutManager;
 import reghzy.juigl.core.Window;
 import reghzy.juigl.core.dependency.DependencyObject;
 import reghzy.juigl.core.dependency.DependencyProperty;
+import reghzy.juigl.core.dependency.DependencyPropertyKey;
 import reghzy.juigl.core.dependency.PropertyMeta;
 import reghzy.juigl.core.dependency.UIPropertyMeta;
+import reghzy.juigl.core.dependency.UIPropertyMetaFlags;
 import reghzy.juigl.core.render.ComponentRenderData;
 import reghzy.juigl.core.render.RenderContext;
 import reghzy.juigl.core.utils.HAlign;
@@ -17,6 +20,7 @@ import reghzy.juigl.utils.Maths;
 import reghzy.juigl.utils.MinMax;
 
 import java.awt.*;
+import java.util.ArrayList;
 
 /**
  * The base component for all UI-based objects
@@ -25,14 +29,16 @@ public class UIComponent extends DependencyObject {
     public static final DependencyProperty MarginProperty = DependencyProperty.register("Margin", Thickness.class, UIComponent.class, new PropertyMeta(Thickness.ZERO));
     public static final DependencyProperty HorizontalAlignmentProperty = DependencyProperty.register("HorizontalAlignment", HAlign.class, UIComponent.class, new PropertyMeta(HAlign.stretch));
     public static final DependencyProperty VerticalAlignmentProperty = DependencyProperty.register("VerticalAlignment", VAlign.class, UIComponent.class, new PropertyMeta(VAlign.stretch));
-    public static final DependencyProperty WidthProperty = DependencyProperty.register("Width", double.class, UIComponent.class, new PropertyMeta(Double.NaN));
-    public static final DependencyProperty HeightProperty = DependencyProperty.register("Height", double.class, UIComponent.class, new PropertyMeta(Double.NaN));
-    public static final DependencyProperty MinWidthProperty = DependencyProperty.register("MinWidth", double.class, UIComponent.class, new PropertyMeta(0d));
-    public static final DependencyProperty MaxWidthProperty = DependencyProperty.register("MaxWidth", double.class, UIComponent.class, new PropertyMeta(Double.POSITIVE_INFINITY));
-    public static final DependencyProperty MinHeightProperty = DependencyProperty.register("MinHeight", double.class, UIComponent.class, new PropertyMeta(0d));
-    public static final DependencyProperty MaxHeightProperty = DependencyProperty.register("MaxHeight", double.class, UIComponent.class, new PropertyMeta(Double.POSITIVE_INFINITY));
-    public static final DependencyProperty BackgroundColourProperty = DependencyProperty.register("BackgroundColour", Color.class, UIComponent.class, new PropertyMeta(null));
+    public static final DependencyProperty WidthProperty = DependencyProperty.register("Width", double.class, UIComponent.class, new UIPropertyMeta(Double.NaN, UIPropertyMetaFlags.AffectsMeasure));
+    public static final DependencyProperty HeightProperty = DependencyProperty.register("Height", double.class, UIComponent.class, new UIPropertyMeta(Double.NaN, UIPropertyMetaFlags.AffectsMeasure));
+    public static final DependencyProperty MinWidthProperty = DependencyProperty.register("MinWidth", double.class, UIComponent.class, new UIPropertyMeta(0d, UIPropertyMetaFlags.AffectsMeasure));
+    public static final DependencyProperty MaxWidthProperty = DependencyProperty.register("MaxWidth", double.class, UIComponent.class, new UIPropertyMeta(Double.POSITIVE_INFINITY, UIPropertyMetaFlags.AffectsMeasure));
+    public static final DependencyProperty MinHeightProperty = DependencyProperty.register("MinHeight", double.class, UIComponent.class, new UIPropertyMeta(0d, UIPropertyMetaFlags.AffectsMeasure));
+    public static final DependencyProperty MaxHeightProperty = DependencyProperty.register("MaxHeight", double.class, UIComponent.class, new UIPropertyMeta(Double.POSITIVE_INFINITY, UIPropertyMetaFlags.AffectsMeasure));
+    public static final DependencyProperty BackgroundColourProperty = DependencyProperty.register("BackgroundColour", Color.class, UIComponent.class, new UIPropertyMeta(null, UIPropertyMetaFlags.AffectsRender));
     public static final DependencyProperty OwnerWindowProperty = DependencyProperty.register("OwnerWindow", Window.class, UIComponent.class, new PropertyMeta(null));
+    static final DependencyPropertyKey ParentPropertyKey = DependencyProperty.registerReadOnly("Parent", Panel.class, UIComponent.class, new UIPropertyMeta(null, UIPropertyMetaFlags.AffectsEntireLayout));
+    public static final DependencyProperty ParentProperty = ParentPropertyKey.getProperty();
 
     public static int FORCE_LAYOUT_COUNT = 0;
 
@@ -60,72 +66,48 @@ public class UIComponent extends DependencyObject {
     private boolean isMeasureInProgress;
     private boolean isArrangeInProgress;
     private boolean isMeasureDuringArrange;
-    protected UIComponent myParent;
+
+    private boolean isAbsVisualPositionValid;
+    private double absRenderPosX;
+    private double absRenderPosY;
 
     private ComponentRenderData renderData;
 
     public UIComponent() {
+        this.neverMeasured = true;
+        this.neverArranged = true;
     }
 
-    public boolean isMeasureDirty() {
-        return this.isMeasureDirty;
-    }
+    public final Vector2d getAbsolutePosition() {
+        if (this.isAbsVisualPositionValid) {
+            return new Vector2d(this.absRenderPosX, this.absRenderPosY);
+        }
 
-    public boolean isArrangeDirty() {
-        return this.isArrangeDirty;
-    }
+        if (this.isArrangeDirty) {
+            throw new RuntimeException("Cannot get render position while arrangement is dirty");
+        }
 
-    public boolean isVisualDirty() {
-        return this.isVisualDirty;
-    }
+        ArrayList<UIComponent> chain = new ArrayList<>();
+        UIComponent next_component = this;
+        do {
+            chain.add(next_component);
+        } while ((next_component = next_component.getParent()) != null);
 
-    public boolean hasNeverMeasured() {
-        return this.neverMeasured;
-    }
+        double x = 0, y = 0;
+        for (UIComponent component : chain) {
+            x = x + component.renderPosX;
+            y = y + component.renderPosY;
+        }
 
-    public boolean hasNeverArranged() {
-        return this.neverArranged;
-    }
-
-    public double getLastMeasureConstraintWidth() {
-        return this.lastMeasureConstraintWidth;
-    }
-
-    public double getLastMeasureConstraintHeight() {
-        return this.lastMeasureConstraintHeight;
-    }
-
-    public double getLastArrangePosX() {
-        return this.lastArrangePosX;
-    }
-
-    public double getLastArrangePosY() {
-        return this.lastArrangePosY;
-    }
-
-    public double getLastArrangeWidth() {
-        return this.lastArrangeWidth;
-    }
-
-    public double getLastArrangeHeight() {
-        return this.lastArrangeHeight;
-    }
-
-    public double getDesiredWidth() {
-        return this.desiredWidth;
-    }
-
-    public double getDesiredHeight() {
-        return this.desiredHeight;
-    }
-
-    private static boolean isPairEqual(double x1, double y1, double x2, double y2) {
-        return Maths.equals(x1, x2) && Maths.equals(y1, y2);
+        this.absRenderPosX = x;
+        this.absRenderPosY = y;
+        this.isAbsVisualPositionValid = true;
+        return new Vector2d(x, y);
     }
 
     public final void measure(double availableWidth, double availableHeight) {
         // check if layout is not forced, and we are already measured and the last constraint matches the new one
-        if (FORCE_LAYOUT_COUNT < 1 || (!this.isMeasureDirty && !this.neverMeasured && isPairEqual(this.lastMeasureConstraintWidth, this.lastMeasureConstraintHeight, availableWidth, availableHeight))) {
+        if (FORCE_LAYOUT_COUNT < 1 && !this.isMeasureDirty && !this.neverMeasured && Maths.equals(this.lastMeasureConstraintWidth, availableWidth) && Maths.equals(this.lastMeasureConstraintHeight, availableHeight)) {
             return;
         }
 
@@ -140,7 +122,7 @@ public class UIComponent extends DependencyObject {
         this.isMeasureDirty = false;
     }
 
-    protected Vector2d measureCore(double availableWidth, double availableHeight) {
+    protected final Vector2d measureCore(double availableWidth, double availableHeight) {
         Thickness margin = this.getMargin();
         MinMax minMax = new MinMax(this);
         double minW = minMax.minW, maxW = minMax.maxW, minH = minMax.minH, maxH = minMax.maxH;
@@ -194,7 +176,7 @@ public class UIComponent extends DependencyObject {
         return new Vector2d(0);
     }
 
-    public void arrange(double x, double y, double availableWidth, double availableHeight) {
+    public final void arrange(double x, double y, double availableWidth, double availableHeight) {
         if (this.isMeasureDirty || this.neverMeasured) {
             this.isMeasureDuringArrange = true;
             if (this.neverMeasured) {
@@ -206,10 +188,16 @@ public class UIComponent extends DependencyObject {
             this.isMeasureDuringArrange = false;
         }
 
-        // TODO: force arrange flag
-        if (FORCE_LAYOUT_COUNT < 1 && !this.isArrangeDirty && !this.neverArranged && isPairEqual(x, y, this.lastArrangePosX, this.lastArrangePosY) && isPairEqual(availableWidth, availableHeight, this.lastArrangeWidth, this.lastArrangeHeight)) {
+        if (FORCE_LAYOUT_COUNT < 1 && !this.isArrangeDirty && !this.neverArranged &&
+            Maths.equals(x, this.lastArrangePosX) && Maths.equals(y, this.lastArrangePosY) &&
+            Maths.equals(availableWidth, this.lastArrangeWidth) && Maths.equals(availableHeight, this.lastArrangeHeight)) {
             return;
         }
+
+        double lastArrX = this.lastArrangePosX;
+        double lastArrY = this.lastArrangePosY;
+        double lastArrW = this.lastArrangeWidth;
+        double lastArrH = this.lastArrangeHeight;
 
         this.neverArranged = false;
         this.isArrangeInProgress = true;
@@ -220,9 +208,14 @@ public class UIComponent extends DependencyObject {
         this.lastArrangeWidth = availableWidth;
         this.lastArrangeHeight = availableHeight;
         this.isArrangeDirty = false;
+        this.isAbsVisualPositionValid = false;
+
+        if (this.isVisualDirty() || !Maths.equals(this.lastArrangePosX, lastArrX) || !Maths.equals(this.lastArrangePosY, lastArrY) || !Maths.equals(this.lastArrangeWidth, lastArrW) || !Maths.equals(this.lastArrangeHeight, lastArrH)) {
+            this.doRenderComponent();
+        }
     }
 
-    protected void arrangeCore(double posX, double posY, double availableWidth, double availableHeight) {
+    protected final void arrangeCore(double posX, double posY, double availableWidth, double availableHeight) {
         Thickness margin = this.getMargin();
         availableWidth = Math.max(availableWidth - (margin.left + margin.right), 0);
         availableHeight = Math.max(availableHeight - (margin.top + margin.bottom), 0);
@@ -335,23 +328,29 @@ public class UIComponent extends DependencyObject {
         RenderContext ctx = new RenderContext(1);
         this.onRender(ctx);
         this.renderData = new ComponentRenderData(ctx.getRenderData());
+        this.isVisualDirty = false;
     }
 
     protected void onRender(RenderContext dc) {
-        dc.drawRect(0, 0, this.renderWidth,this.renderHeight, 0.1f, 0.1f, 0.5f, 1f);
+        Color bg = this.getBackgroundColour();
+        if (bg != null) {
+            dc.drawRect(0, 0, this.renderWidth, this.renderHeight, bg);
+        }
     }
 
     public void invalidateMeasure() {
         if (this.isMeasureDirty || this.isMeasureInProgress)
             return;
-        LayoutManager.getLayoutManager().measureQueue.add(this);
+        if (!this.neverMeasured)
+            LayoutManager.getLayoutManager().measureQueue.add(this);
         this.isMeasureDirty = true;
     }
 
     public void invalidateArrange() {
         if (this.isArrangeDirty || this.isArrangeInProgress)
             return;
-        LayoutManager.getLayoutManager().arrangeQueue.add(this);
+        if (!this.neverArranged)
+            LayoutManager.getLayoutManager().arrangeQueue.add(this);
         this.isArrangeDirty = true;
     }
 
@@ -361,6 +360,24 @@ public class UIComponent extends DependencyObject {
     }
 
     // Getters/Setters ////////////////////////////////////////////////////////////////////////////////////////////
+
+    public boolean isMeasureDirty() { return this.isMeasureDirty; }
+    public boolean isArrangeDirty() { return this.isArrangeDirty; }
+    public boolean isVisualDirty() { return this.isVisualDirty; }
+    public boolean hasNeverMeasured() { return this.neverMeasured; }
+    public boolean hasNeverArranged() { return this.neverArranged; }
+    public double getLastMeasureConstraintWidth() { return this.lastMeasureConstraintWidth; }
+    public double getLastMeasureConstraintHeight() { return this.lastMeasureConstraintHeight; }
+    public double getLastArrangePosX() { return this.lastArrangePosX; }
+    public double getLastArrangePosY() { return this.lastArrangePosY; }
+    public double getLastArrangeWidth() { return this.lastArrangeWidth; }
+    public double getLastArrangeHeight() { return this.lastArrangeHeight; }
+    public double getDesiredWidth() { return this.desiredWidth; }
+    public double getDesiredHeight() { return this.desiredHeight; }
+    public double getRenderPosX() { return this.renderPosX; }
+    public double getRenderPosY() { return this.renderPosY; }
+    public double getRenderWidth() { return this.renderWidth; }
+    public double getRenderHeight() { return this.renderHeight; }
 
     public Thickness getMargin() { return (Thickness) getValue(MarginProperty); }
     public void setMargin(Thickness value) { setValue(MarginProperty, value); }
@@ -396,7 +413,57 @@ public class UIComponent extends DependencyObject {
     public Window getOwnerWindow() { return Main.mainWindow; }
     // public void setOwnerWindow(Window value) { setValue(OwnerWindowProperty, value); }
 
-    public UIComponent getParent() {
-        return this.myParent;
+    public Panel getParent() { return (Panel) getValue(ParentProperty); }
+    void setParent(Panel value) { setValue(ParentPropertyKey, value); }
+
+    protected void onBeforeAddedToPanel(Panel parent) {
+    }
+
+    /**
+     * Called when this component is added to a panel (meaning, its parent
+     * changed). Our parent will equal the parameter object
+     */
+    protected void onAddedToPanel(Panel parent) {
+        this.onParentChanged();
+    }
+
+    protected void onBeforeRemovedFromPanel(Panel parent) {
+    }
+
+    /**
+     * Called when this component is removed from its panel (removed from its
+     * parent). Our parent will be null, but the parameter object will be our previous parent
+     */
+    protected void onRemovedFromPanel(Panel parent) {
+        this.onParentChanged();
+    }
+
+    /**
+     * Called by both {@link UIComponent#onAddedToPanel(Panel)} and {@link UIComponent#onRemovedFromPanel(Panel)}
+     */
+    protected void onParentChanged() {
+        this.invalidateMeasure();
+        this.invalidateArrange();
+        this.invalidateVisual();
+    }
+
+    public static void drawRecursive(UIComponent component) {
+        GL11.glPushMatrix();
+
+        Vector2d pos = component.getAbsolutePosition();
+        GL11.glTranslated(pos.x, pos.y, 0d);
+
+        if (component.renderData != null) {
+            component.renderData.drawAll();
+        }
+
+        if (component instanceof Panel) {
+            Panel panel = (Panel) component;
+            for (int i = 0, count = panel.getVisualChildrenCount(); i < count; i++) {
+                drawRecursive(panel.getVisualChild(i));
+            }
+        }
+
+        GL11.glPopMatrix();
     }
 }

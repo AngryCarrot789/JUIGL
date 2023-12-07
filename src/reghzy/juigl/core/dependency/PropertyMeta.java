@@ -50,14 +50,15 @@ public class PropertyMeta {
         return this.defaultValue.hasValue();
     }
 
-    public void addChangeHandler(PropertyChangedHandler handler) {
+    public PropertyMeta addChangeHandler(PropertyChangedHandler handler) {
         if (handler == null)
             throw new IllegalArgumentException("Handler cannot be null");
         if (this.changeChangers == null)
             this.changeChangers = new ArrayList<>();
         else if (this.changeChangers.contains(handler))
-            return;
+            return this;
         this.changeChangers.add(handler);
+        return this;
     }
 
     public boolean removeChangeHandler(PropertyChangedHandler handler) {

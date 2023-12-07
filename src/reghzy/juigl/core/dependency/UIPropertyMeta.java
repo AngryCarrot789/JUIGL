@@ -12,12 +12,28 @@ public class UIPropertyMeta extends PropertyMeta {
         super(defaultValue);
     }
 
+    public UIPropertyMeta(Object defaultValue, int flags) {
+        super(defaultValue);
+        this.flags = flags;
+    }
+
     public UIPropertyMeta(Object defaultValue, PropertyChangedHandler changeHandler) {
         super(defaultValue, changeHandler);
     }
 
+    public UIPropertyMeta(Object defaultValue, int flags, PropertyChangedHandler changeHandler) {
+        super(defaultValue, changeHandler);
+        this.flags = flags;
+    }
+
     public UIPropertyMeta setFlags(int flags) {
         this.flags = flags;
+        return this;
+    }
+
+    @Override
+    public UIPropertyMeta addChangeHandler(PropertyChangedHandler handler) {
+        super.addChangeHandler(handler);
         return this;
     }
 

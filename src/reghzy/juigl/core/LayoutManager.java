@@ -3,11 +3,13 @@ package reghzy.juigl.core;
 import reghzy.juigl.Main;
 import reghzy.juigl.core.dispatcher.DispatchPriority;
 import reghzy.juigl.core.dispatcher.Dispatcher;
+import reghzy.juigl.core.render.ComponentRenderData;
 import reghzy.juigl.core.ui.UIComponent;
 import reghzy.juigl.utils.Maths;
 
 import javax.swing.text.StyledEditorKit;
 import java.util.ArrayList;
+import java.util.Comparator;
 
 public class LayoutManager {
     public final LayoutQueue measureQueue;
@@ -47,6 +49,9 @@ public class LayoutManager {
     public void updateLayout() {
         UIComponent.FORCE_LAYOUT_COUNT++;
         for (UIComponent next : this.measureQueue.items) {
+            if (!next.isMeasureDirty())
+                continue;
+
             UIComponent lastDirty = null;
             UIComponent scanParent = next.getParent();
             while (scanParent != null) {
@@ -72,21 +77,24 @@ public class LayoutManager {
                 h = parent.getLastMeasureConstraintHeight();
             }
 
-            double lastDw = target.getDesiredWidth(),lastDh = target.getDesiredHeight();
+            // double lastDw = target.getDesiredWidth(),lastDh = target.getDesiredHeight();
+            target.invalidateArrange();
             target.measure(w, h);
-            if (!Maths.equals(target.getDesiredWidth(), lastDw) || !Maths.equals(target.getDesiredHeight(), lastDh)) {
-                target.invalidateArrange();
-            }
+            // if (!Maths.equals(target.getDesiredWidth(), lastDw) || !Maths.equals(target.getDesiredHeight(), lastDh)) {
+            // }
         }
 
-        ArrayList<UIComponent> draw = new ArrayList<>();
-
         for (UIComponent next : this.arrangeQueue.items) {
+            if (!next.isArrangeDirty()) {
+                continue;
+            }
+
             UIComponent lastDirty = null;
             UIComponent scanParent = next.getParent();
             while (scanParent != null) {
-                if (scanParent.isArrangeDirty())
+                if (scanParent.isArrangeDirty()) {
                     lastDirty = scanParent;
+                }
                 scanParent = scanParent.getParent();
             }
 
@@ -118,22 +126,13 @@ public class LayoutManager {
                 h = parent.getLastArrangeHeight();
             }
 
-            double lastArrX = target.getLastArrangePosX();
-            double lastArrY = target.getLastArrangePosY();
-            double lastArrW = target.getLastArrangeWidth();
-            double lastArrH = target.getLastArrangeHeight();
             target.arrange(x, y, w, h);
-            if (target.isVisualDirty() || !Maths.equals(target.getLastArrangePosX(), lastArrX) || !Maths.equals(target.getLastArrangePosY(), lastArrY) || !Maths.equals(target.getLastArrangeWidth(), lastArrW) || !Maths.equals(target.getLastArrangeHeight(), lastArrH)) {
-                draw.add(target);
-            }
         }
 
-        for (UIComponent component : draw) {
-            component.doRenderComponent();
-        }
+        this.measureQueue.clear();
+        this.arrangeQueue.clear();
 
         UIComponent.FORCE_LAYOUT_COUNT--;
-        Main.mainWindow.draw();
     }
 
     public static abstract class LayoutQueue {
@@ -159,6 +158,10 @@ public class LayoutManager {
 
         public boolean remove(UIComponent component) {
             return this.items.remove(component);
+        }
+
+        void clear() {
+            this.items.clear();
         }
     }
 

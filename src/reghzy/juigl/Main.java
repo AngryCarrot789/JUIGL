@@ -1,21 +1,29 @@
 package reghzy.juigl;
 
-import org.joml.Vector2d;
 import org.lwjgl.PointerBuffer;
 import org.lwjgl.glfw.GLFW;
 import org.lwjgl.opengl.GL11;
+import reghzy.juigl.core.LayoutManager;
 import reghzy.juigl.core.Window;
 import reghzy.juigl.core.dispatcher.DispatchPriority;
 import reghzy.juigl.core.dispatcher.Dispatcher;
 import reghzy.juigl.core.msg.MessageQueue;
 import reghzy.juigl.core.render.RenderData;
+import reghzy.juigl.core.ui.Panel;
 import reghzy.juigl.core.ui.UIComponent;
+import reghzy.juigl.core.utils.HAlign;
+import reghzy.juigl.core.utils.Thickness;
+import reghzy.juigl.core.utils.VAlign;
+
+import java.awt.*;
 
 public class Main {
     public static RenderData renderData;
     public static Window mainWindow;
     private static PointerBuffer pBuffer;
-    private static volatile boolean isAPpRunning;
+    private static volatile boolean isAppRunning;
+
+    private static Panel mainContent;
 
     public static void printLastError() {
         if (GLFW.glfwGetError(pBuffer) != GL11.GL_NO_ERROR) {
@@ -50,9 +58,9 @@ public class Main {
         GL11.glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
         GL11.glEnable(GL11.GL_CULL_FACE);
         GL11.glCullFace(GL11.GL_BACK);
-        GL11.glEnable(GL11.GL_DEPTH_TEST);
-        GL11.glDepthFunc(GL11.GL_LESS);
-        GL11.glDepthMask(true);
+        // GL11.glEnable(GL11.GL_DEPTH_TEST);
+        // GL11.glDepthFunc(GL11.GL_LESS);
+        // GL11.glDepthMask(true);
         printLastError();
 
         Dispatcher.getDispatcher().invokeLater(new Runnable() {
@@ -62,8 +70,21 @@ public class Main {
             }
         }, DispatchPriority.Render);
 
+        // define UI
 
-        // test to make sure it works
+        mainContent = new Panel();
+        mainContent.setBackgroundColour(Color.orange);
+
+        UIComponent myCmp = new UIComponent();
+        myCmp.setHorizontalAlignment(HAlign.right);
+        myCmp.setVerticalAlignment(VAlign.bottom);
+        myCmp.setWidth(250);
+        myCmp.setHeight(100);
+        myCmp.setMargin(new Thickness(10));
+        myCmp.setBackgroundColour(Color.red);
+        mainContent.addChild(myCmp);
+
+        // test to make sure dependency property system works
         UIComponent cmp = new UIComponent();
         System.out.println(cmp.getMargin());
         System.out.println(cmp.getWidth());
@@ -71,24 +92,36 @@ public class Main {
         System.out.println(cmp.getHorizontalAlignment());
         System.out.println(cmp.getVerticalAlignment());
 
-        isAPpRunning = true;
+        mainContent.invalidateVisual();
+        mainContent.measure(mainWindow.getWidth(), mainWindow.getHeight());
+        mainContent.arrange(0, 0, mainWindow.getWidth(), mainWindow.getHeight());
+        LayoutManager.getLayoutManager().updateLayout();
+        onReDrawApplicationWindow();
+
+        isAppRunning = true;
         do {
             GLFW.glfwWaitEvents();
             MessageQueue.INSTANCE.processQueue();
-            if (!isAPpRunning) {
-                break;
-            }
-
-            GL11.glClear(GL11.GL_COLOR_BUFFER_BIT | GL11.GL_DEPTH_BUFFER_BIT);
-            onReDrawApplicationWindow();
-        } while (true);
+        } while (isAppRunning);
 
         GLFW.glfwTerminate();
     }
 
+    public static void onWindowSizeChanged() {
+        mainContent.invalidateMeasure();
+        mainContent.invalidateVisual();
+        mainContent.arrange(0, 0, mainWindow.getWidth(), mainWindow.getHeight());
+        LayoutManager.getLayoutManager().updateLayout();
+        Main.onReDrawApplicationWindow();
+
+        // Dispatcher.getDispatcher().invokeLater(Main::onReDrawApplicationWindow, DispatchPriority.Render);
+    }
+
     public static void onReDrawApplicationWindow() {
+        GL11.glClear(GL11.GL_COLOR_BUFFER_BIT | GL11.GL_DEPTH_BUFFER_BIT);
         GL11.glPushMatrix();
-        renderData.draw(RenderData.LargeDirectBuffer, null);
+        // renderData.draw(RenderData.LargeDirectBuffer, null);
+        UIComponent.drawRecursive(mainContent);
         GL11.glPopMatrix();
 
         mainWindow.swapBuffers();
@@ -96,7 +129,7 @@ public class Main {
 
     public static void onWindowsClosed() {
         if (!mainWindow.isWindowOpen()) {
-            isAPpRunning = false;
+            isAppRunning = false;
         }
     }
 }

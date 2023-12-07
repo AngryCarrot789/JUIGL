@@ -36,6 +36,7 @@ public class DependencyProperty {
     private static final Object RegistrationLock = new Object();
 
     public static final Object UnsetValue = new Object();
+    private DependencyPropertyKey accessKey;
 
     DependencyProperty(String name, Class<?> valueType, Class<?> primitiveType, Class<?> ownerType, PropertyMeta defaultMetaData, int globalIndex) {
         this.name = name;
@@ -77,11 +78,12 @@ public class DependencyProperty {
      * @throws RuntimeException An error occurred while registering a property
      */
     public static DependencyProperty register(String name, Class<?> valueType, Class<?> ownerType) {
-        return registerCore(new DependencyPropertyPath(name, ownerType), valueType, null);
+        return register(name, valueType, ownerType, null);
     }
 
     /**
-     * Registers a new dependency property for a target owner type with the given name. See the {@link DependencyProperty} javadocs for more info
+     * Registers a new read-only dependency property for a target owner type with the given name. See the {@link DependencyProperty} javadocs for more info.
+     * Read-only properties require an access key to actually modify, but can be read by anyone
      * @param name The property name
      * @param valueType The type of value this property stores
      * @param ownerType The class that owns this property
@@ -91,6 +93,35 @@ public class DependencyProperty {
      */
     public static DependencyProperty register(String name, Class<?> valueType, Class<?> ownerType, PropertyMeta defaultMetaData) {
         return registerCore(new DependencyPropertyPath(name, ownerType), valueType, defaultMetaData);
+    }
+
+    /**
+     * Registers a new dependency property for a target owner type with the given name. See the {@link DependencyProperty} javadocs for more info
+     * @param name      The property name
+     * @param valueType The type of value this property stores
+     * @param ownerType The class that owns this property
+     * @return A new property, to be stored as a static final field in the owner type class
+     * @throws RuntimeException An error occurred while registering a property
+     */
+    public static DependencyPropertyKey registerReadOnly(String name, Class<?> valueType, Class<?> ownerType) {
+        return registerReadOnly(name, valueType, ownerType, null);
+    }
+
+    /**
+     * Registers a new read-only dependency property for a target owner type with the given name. See the {@link DependencyProperty} javadocs for more info.
+     * Read-only properties require an access key to actually modify, but can be read by anyone
+     * @param name            The property name
+     * @param valueType       The type of value this property stores
+     * @param ownerType       The class that owns this property
+     * @param defaultMetaData The default property metadata (may be null)
+     * @return A new property, to be stored as a static final field in the owner type class
+     * @throws RuntimeException An error occurred while registering a property
+     */
+    public static DependencyPropertyKey registerReadOnly(String name, Class<?> valueType, Class<?> ownerType, PropertyMeta defaultMetaData) {
+        DependencyProperty property = registerCore(new DependencyPropertyPath(name, ownerType), valueType, defaultMetaData);
+        DependencyPropertyKey key = new DependencyPropertyKey(property);
+        property.accessKey = key;
+        return key;
     }
 
     private static DependencyProperty registerCore(DependencyPropertyPath path, Class<?> valueType, PropertyMeta defaultMetaData) {
@@ -174,5 +205,13 @@ public class DependencyProperty {
 
     public boolean isValidValueType(Object value) {
         return this.valueType.isInstance(value);
+    }
+
+    public boolean isReadOnly() {
+        return this.accessKey != null;
+    }
+
+    public boolean isKeyValid(DependencyPropertyKey key) {
+        return this.accessKey == key;
     }
 }
