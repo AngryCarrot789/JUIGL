@@ -117,7 +117,7 @@ public final class Dispatcher {
     private void enqueue(DispatcherOperation<?> operation) {
         int priority = operation.getPriority().ordinal();
         if (priority != 0) {
-            this.queues[priority].offer(operation);
+            this.queues[priority - 1].offer(operation);
             if (this.hasEnqueued.compareAndSet(false, true)) {
                 this.requestProcessing();
             }

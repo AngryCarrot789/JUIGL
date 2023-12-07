@@ -49,7 +49,7 @@ public class Panel extends UIComponent {
             return false;
         this.visualChildren.add(component);
         component.onBeforeAddedToPanel(this);
-        component.setParent(this);
+        component.setValue(ParentPropertyKey, this);
         component.onAddedToPanel(this);
         this.invalidateMeasure();
         return true;
@@ -61,7 +61,7 @@ public class Panel extends UIComponent {
             return false;
         this.visualChildren.remove(index);
         component.onBeforeRemovedFromPanel(this);
-        component.setParent(null);
+        component.setValue(ParentPropertyKey, null);
         component.onRemovedFromPanel(this);
         this.invalidateMeasure();
         return true;

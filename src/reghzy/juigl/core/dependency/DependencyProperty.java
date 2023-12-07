@@ -1,6 +1,8 @@
 package reghzy.juigl.core.dependency;
 
 import reghzy.juigl.utils.ClassUtils;
+import reghzy.juigl.utils.Ref;
+import sun.plugin.dom.exception.InvalidStateException;
 
 import java.util.HashMap;
 
@@ -30,12 +32,13 @@ public class DependencyProperty {
     private final Class<?> valueType;
     private final Class<?> primitiveType;
     private final PropertyMeta defaultMetaData;
+    private final HashMap<Class<?>, PropertyMeta> metaMap;
     private final int globalIndex;
 
     private static final HashMap<DependencyPropertyPath, DependencyProperty> RegisteredProperties;
     private static final Object RegistrationLock = new Object();
 
-    public static final Object UnsetValue = new Object();
+    public static final Object UnsetValue = new NamedObject("UnsetValue");
     private DependencyPropertyKey accessKey;
 
     DependencyProperty(String name, Class<?> valueType, Class<?> primitiveType, Class<?> ownerType, PropertyMeta defaultMetaData, int globalIndex) {
@@ -45,6 +48,7 @@ public class DependencyProperty {
         this.ownerType = ownerType;
         this.defaultMetaData = defaultMetaData;
         this.globalIndex = globalIndex;
+        this.metaMap = new HashMap<>();
     }
 
     static {
@@ -170,6 +174,51 @@ public class DependencyProperty {
         }
     }
 
+    public DependencyProperty addOwner(Class<?> ownerType, PropertyMeta metadata) {
+        synchronized (RegistrationLock) {
+            DependencyPropertyPath path = new DependencyPropertyPath(this.name, ownerType);
+            if (RegisteredProperties.get(path) != null) {
+                throw new RuntimeException("Property already registered in class '" + path.getOwnerType().getName() + "' with name '" + path.getName() + "'");
+            }
+
+            if (metadata != null) {
+                this.overrideMetadata(ownerType, metadata);
+            }
+
+            RegisteredProperties.put(path, this);
+            return this;
+        }
+    }
+
+    private void prepareMetaOverride(Class<?> ownerType, PropertyMeta meta, Ref<PropertyMeta> baseMetaRef) {
+        if (ownerType == null)
+            throw new IllegalArgumentException("New owner type cannot be null");
+        if (!DependencyObject.class.isAssignableFrom(ownerType))
+            throw new IllegalArgumentException("New owner type is not an instance of dependency object: " + ownerType.getName());
+        if (meta == null)
+            throw new IllegalArgumentException("New metadata cannot be null");
+        if (meta.isSealed())
+            throw new IllegalStateException("The given metadata was sealed. It must not be sealed before being used as an override");
+        if (this.metaMap.containsKey(ownerType))
+            throw new RuntimeException("Metadata already overridden for owner type: " + ownerType.getName());
+        if (!(baseMetaRef.value = this.getMetaData(ownerType.getSuperclass())).getClass().isAssignableFrom(meta.getClass()))
+            throw new IllegalArgumentException("New metadata type does not match base metadata type");
+    }
+
+    public void overrideMetadata(Class<?> ownerType, PropertyMeta meta) {
+        if (this.isReadOnly())
+            throw new InvalidStateException("This property is read only; the meta cannot be overridden");
+        Ref<PropertyMeta> baseMeta = new Ref<>();
+        this.prepareMetaOverride(ownerType, meta, baseMeta);
+        this.doMetaOverride(ownerType, meta, baseMeta.value);
+    }
+
+    private void doMetaOverride(Class<?> ownerType, PropertyMeta newMeta, PropertyMeta baseMeta) {
+        newMeta.mergeInternal(baseMeta);
+        newMeta.seal();
+        this.metaMap.put(ownerType, newMeta);
+    }
+
     public String getName() {
         return this.name;
     }
@@ -190,8 +239,20 @@ public class DependencyProperty {
         return this.defaultMetaData;
     }
 
-    // TODO: overridable metadata
     public PropertyMeta getMetaData(DependencyObject instance) {
+        return this.getMetaData(instance.getClass());
+    }
+
+    public PropertyMeta getMetaData(Class<?> targetOwnerType) {
+        if (this.metaMap.size() < 1)
+            return this.defaultMetaData;
+        for (Class<?> type = targetOwnerType; type != null; type = type.getSuperclass()) {
+            PropertyMeta meta = this.metaMap.get(type);
+            if (meta != null) {
+                return meta;
+            }
+        }
+
         return this.defaultMetaData;
     }
 

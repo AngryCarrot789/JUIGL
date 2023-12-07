@@ -100,4 +100,17 @@ public class PropertyMeta {
             }
         }
     }
+
+    public void mergeInternal(PropertyMeta baseMetadata) {
+        if (!this.hasDefaultValueSet() && baseMetadata.hasDefaultValueSet()) {
+            this.defaultValue.setValue(baseMetadata.getDefaultValue());
+        }
+
+        ArrayList<PropertyChangedHandler> baseList = baseMetadata.changeChangers;
+        if (baseList != null && baseList.size() > 0) {
+            if (this.changeChangers == null)
+                this.changeChangers = new ArrayList<>();
+            this.changeChangers.addAll(0, baseList);
+        }
+    }
 }

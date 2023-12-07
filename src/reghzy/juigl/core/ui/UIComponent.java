@@ -112,6 +112,7 @@ public class UIComponent extends DependencyObject {
         }
 
         this.neverMeasured = false;
+        this.invalidateArrange();
         this.lastMeasureConstraintWidth = availableWidth;
         this.lastMeasureConstraintHeight = availableHeight;
         this.isMeasureInProgress = true;
@@ -414,7 +415,6 @@ public class UIComponent extends DependencyObject {
     // public void setOwnerWindow(Window value) { setValue(OwnerWindowProperty, value); }
 
     public Panel getParent() { return (Panel) getValue(ParentProperty); }
-    void setParent(Panel value) { setValue(ParentPropertyKey, value); }
 
     protected void onBeforeAddedToPanel(Panel parent) {
     }

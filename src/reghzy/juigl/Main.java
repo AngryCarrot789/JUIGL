@@ -5,11 +5,7 @@ import org.lwjgl.glfw.GLFW;
 import org.lwjgl.opengl.GL11;
 import reghzy.juigl.core.LayoutManager;
 import reghzy.juigl.core.Window;
-import reghzy.juigl.core.dispatcher.DispatchPriority;
-import reghzy.juigl.core.dispatcher.Dispatcher;
 import reghzy.juigl.core.msg.MessageQueue;
-import reghzy.juigl.core.render.RenderData;
-import reghzy.juigl.core.ui.Panel;
 import reghzy.juigl.core.ui.UIComponent;
 import reghzy.juigl.core.utils.HAlign;
 import reghzy.juigl.core.utils.Thickness;
@@ -18,12 +14,9 @@ import reghzy.juigl.core.utils.VAlign;
 import java.awt.*;
 
 public class Main {
-    public static RenderData renderData;
     public static Window mainWindow;
     private static PointerBuffer pBuffer;
     private static volatile boolean isAppRunning;
-
-    private static Panel mainContent;
 
     public static void printLastError() {
         if (GLFW.glfwGetError(pBuffer) != GL11.GL_NO_ERROR) {
@@ -40,18 +33,12 @@ public class Main {
         }
 
         mainWindow = new Window();
+        mainWindow.setWidth(1280);
+        mainWindow.setHeight(720);
         mainWindow.show();
 
         printLastError();
         // glEnable(GL13.GL_MULTISAMPLE);
-
-        float x = 20, y = 20, width = 300, height = 100F;
-        renderData = new RenderData(RenderData.CapacityForQuad(1), GL11.GL_QUADS);
-        renderData.setColour(255, 40, 90, 255);
-        renderData.addVertex(x, y + height, 0.5F);
-        renderData.addVertex(x + width, y + height, 0.5F);
-        renderData.addVertex(x + width, y, 0.5F);
-        renderData.addVertex(x, y, 0.5F);
 
         printLastError();
 
@@ -63,17 +50,9 @@ public class Main {
         // GL11.glDepthMask(true);
         printLastError();
 
-        Dispatcher.getDispatcher().invokeLater(new Runnable() {
-            @Override
-            public void run() {
-                System.out.println("lel!");
-            }
-        }, DispatchPriority.Render);
-
         // define UI
 
-        mainContent = new Panel();
-        mainContent.setBackgroundColour(Color.orange);
+        mainWindow.setBackgroundColour(new Color(25, 25, 25));
 
         UIComponent myCmp = new UIComponent();
         myCmp.setHorizontalAlignment(HAlign.right);
@@ -81,8 +60,16 @@ public class Main {
         myCmp.setWidth(250);
         myCmp.setHeight(100);
         myCmp.setMargin(new Thickness(10));
-        myCmp.setBackgroundColour(Color.red);
-        mainContent.addChild(myCmp);
+        myCmp.setBackgroundColour(new Color(75, 75, 75));
+        mainWindow.addChild(myCmp);
+
+        UIComponent stretchComp = new UIComponent();
+        stretchComp.setHorizontalAlignment(HAlign.left);
+        stretchComp.setVerticalAlignment(VAlign.stretch);
+        stretchComp.setWidth(250);
+        stretchComp.setMargin(new Thickness(10));
+        stretchComp.setBackgroundColour(new Color(45, 45, 45));
+        mainWindow.addChild(stretchComp);
 
         // test to make sure dependency property system works
         UIComponent cmp = new UIComponent();
@@ -92,11 +79,23 @@ public class Main {
         System.out.println(cmp.getHorizontalAlignment());
         System.out.println(cmp.getVerticalAlignment());
 
-        mainContent.invalidateVisual();
-        mainContent.measure(mainWindow.getWidth(), mainWindow.getHeight());
-        mainContent.arrange(0, 0, mainWindow.getWidth(), mainWindow.getHeight());
+        // mainWindow.invalidateMeasure();
+        // mainWindow.invalidateArrange();
+        mainWindow.invalidateVisual();
+        mainWindow.arrange(0, 0, mainWindow.getWidth(), mainWindow.getHeight());
         LayoutManager.getLayoutManager().updateLayout();
-        onReDrawApplicationWindow();
+        mainWindow.draw();
+
+        new Thread(() -> {
+            try {
+                Thread.sleep(1000);
+            }
+            catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+
+            mainWindow.getDispatcher().invokeLater(() -> mainWindow.setWidth(1000));
+        }).start();
 
         isAppRunning = true;
         do {
@@ -105,26 +104,6 @@ public class Main {
         } while (isAppRunning);
 
         GLFW.glfwTerminate();
-    }
-
-    public static void onWindowSizeChanged() {
-        mainContent.invalidateMeasure();
-        mainContent.invalidateVisual();
-        mainContent.arrange(0, 0, mainWindow.getWidth(), mainWindow.getHeight());
-        LayoutManager.getLayoutManager().updateLayout();
-        Main.onReDrawApplicationWindow();
-
-        // Dispatcher.getDispatcher().invokeLater(Main::onReDrawApplicationWindow, DispatchPriority.Render);
-    }
-
-    public static void onReDrawApplicationWindow() {
-        GL11.glClear(GL11.GL_COLOR_BUFFER_BIT | GL11.GL_DEPTH_BUFFER_BIT);
-        GL11.glPushMatrix();
-        // renderData.draw(RenderData.LargeDirectBuffer, null);
-        UIComponent.drawRecursive(mainContent);
-        GL11.glPopMatrix();
-
-        mainWindow.swapBuffers();
     }
 
     public static void onWindowsClosed() {

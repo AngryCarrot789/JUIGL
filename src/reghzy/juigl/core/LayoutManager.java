@@ -41,7 +41,6 @@ public class LayoutManager {
         this.isLayoutRequested = true;
         Dispatcher.getDispatcher().invokeLater(o -> {
             o.updateLayout();
-            this.isLayoutRequested = false;
             return null;
         }, this, DispatchPriority.Render);
     }
@@ -60,79 +59,33 @@ public class LayoutManager {
                 scanParent = scanParent.getParent();
             }
 
-            double w,h;
             UIComponent target = lastDirty != null ? lastDirty : next;
-            UIComponent parent;
-            if (!target.hasNeverMeasured()) {
-                w = target.getLastMeasureConstraintWidth();
-                h = target.getLastMeasureConstraintHeight();
-            }
-            else if ((parent = target.getParent()) == null) {
-                w = h = Double.POSITIVE_INFINITY;
-            }
-            else {
-                if (parent.hasNeverMeasured())
-                    throw new RuntimeException("Layout fatal error. Expected parent object to be measured");
-                w = parent.getLastMeasureConstraintWidth();
-                h = parent.getLastMeasureConstraintHeight();
-            }
-
-            // double lastDw = target.getDesiredWidth(),lastDh = target.getDesiredHeight();
-            target.invalidateArrange();
-            target.measure(w, h);
-            // if (!Maths.equals(target.getDesiredWidth(), lastDw) || !Maths.equals(target.getDesiredHeight(), lastDh)) {
-            // }
+            target.measure(target.getLastMeasureConstraintWidth(), target.getLastMeasureConstraintHeight());
         }
 
         for (UIComponent next : this.arrangeQueue.items) {
-            if (!next.isArrangeDirty()) {
+            if (!next.isArrangeDirty())
                 continue;
-            }
 
             UIComponent lastDirty = null;
             UIComponent scanParent = next.getParent();
             while (scanParent != null) {
-                if (scanParent.isArrangeDirty()) {
+                if (scanParent.isArrangeDirty())
                     lastDirty = scanParent;
-                }
                 scanParent = scanParent.getParent();
             }
 
-            double x, y, w, h;
             UIComponent target = lastDirty != null ? lastDirty : next;
-            UIComponent parent;
-            if (!target.hasNeverArranged()) {
-                x = target.getLastArrangePosX();
-                y = target.getLastArrangePosY();
-                w = target.getLastArrangeWidth();
-                h = target.getLastArrangeHeight();
-            }
-            else if ((parent = target.getParent()) == null) {
-                Window window = target.getOwnerWindow();
-                if (window == null) {
-                    x = y = w = h = 0;
-                }
-                else {
-                    x = y = 0;
-                    w = window.getWidth();
-                    h = window.getHeight();
-                }
-            }
-            else {
-                if (parent.hasNeverArranged())
-                    throw new RuntimeException("Layout fatal error. Expected parent object to be arranged");
-                x = y = 0;
-                w = parent.getLastArrangeWidth();
-                h = parent.getLastArrangeHeight();
-            }
-
-            target.arrange(x, y, w, h);
+            double w = target.getLastMeasureConstraintWidth() == Double.POSITIVE_INFINITY ? target.getDesiredWidth() : target.getLastArrangeWidth();
+            double h = target.getLastMeasureConstraintHeight() == Double.POSITIVE_INFINITY ? target.getDesiredHeight() : target.getLastArrangeHeight();
+            target.arrange(0, 0, w, h);
         }
 
         this.measureQueue.clear();
         this.arrangeQueue.clear();
 
         UIComponent.FORCE_LAYOUT_COUNT--;
+        this.isLayoutRequested = false;
     }
 
     public static abstract class LayoutQueue {

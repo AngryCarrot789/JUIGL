@@ -1,28 +1,32 @@
 package reghzy.juigl.core;
 
+import org.joml.Vector2d;
 import org.lwjgl.glfw.GLFW;
 import org.lwjgl.opengl.GL;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GLCapabilities;
 import reghzy.juigl.Main;
+import reghzy.juigl.core.dependency.DependencyProperty;
+import reghzy.juigl.core.dependency.UIPropertyMeta;
 import reghzy.juigl.core.msg.MessageQueue;
+import reghzy.juigl.core.ui.Panel;
+import reghzy.juigl.core.ui.UIComponent;
 
 import static org.lwjgl.glfw.GLFW.glfwSwapBuffers;
 
-public class Window {
+public class Window extends Panel {
+    public static final DependencyProperty WidthProperty = UIComponent.WidthProperty.addOwner(Window.class, new UIPropertyMeta(0d, (o, p, ov, nv) -> ((Window) o).onWidthPropertyChanged((double) ov, (double) nv)));
+    public static final DependencyProperty HeightProperty = UIComponent.HeightProperty.addOwner(Window.class, new UIPropertyMeta(0d, (o, p, ov, nv) -> ((Window) o).onHeightPropertyChanged((double) ov, (double) nv)));
+
     private long handle;
     private String title;
-    private int width;
-    private int height;
     private GLCapabilities capabilities;
+    private boolean isEventUpdatingSize;
 
-    private static final int WindowClosedMessage = MessageQueue.INSTANCE.registerMessage((id, param) -> {
-        Main.onWindowsClosed();
-    });
+    private static final int WindowClosedMessage = MessageQueue.INSTANCE.registerMessage((id, param) -> Main.onWindowsClosed());
+    private static final int RenderWindowMessage = MessageQueue.INSTANCE.registerMessage((id, param) -> Main.onWindowsClosed());
 
     public Window() {
-        this.width = 1280;
-        this.height = 720;
         this.title = "My window!";
     }
 
@@ -30,12 +34,20 @@ public class Window {
         return this.title;
     }
 
-    public int getWidth() {
-        return this.width;
+    private void onWidthPropertyChanged(double oldWidth, double newWidth) {
+        if (this.isEventUpdatingSize || this.handle == 0)
+            return;
+        int w = (int) newWidth, h = (int) this.getHeight();
+        GLFW.glfwSetWindowSize(this.handle, w, h);
+        this.onWindowSizeChangedCore(w, h);
     }
 
-    public int getHeight() {
-        return this.height;
+    private void onHeightPropertyChanged(double oldHeight, double newHeight) {
+        if (this.isEventUpdatingSize || this.handle == 0)
+            return;
+        int w = (int) this.getWidth(), h = (int) newHeight;
+        GLFW.glfwSetWindowSize(this.handle, w, h);
+        this.onWindowSizeChangedCore(w, h);
     }
 
     private void CreateHandleInternal() {
@@ -47,7 +59,7 @@ public class Window {
         GLFW.glfwWindowHint(GLFW.GLFW_CONTEXT_VERSION_MINOR, 1);
         GLFW.glfwWindowHint(GLFW.GLFW_SAMPLES, 2);
         GLFW.glfwWindowHint(GLFW.GLFW_VISIBLE, GLFW.GLFW_FALSE);
-        this.handle = GLFW.glfwCreateWindow(this.width, this.height, this.title, 0, 0);
+        this.handle = GLFW.glfwCreateWindow((int) this.getWidth(), (int) this.getHeight(), this.title, 0, 0);
         if (this.handle == 0) {
             throw new RuntimeException("An exception occurred while creating internal window");
         }
@@ -74,18 +86,62 @@ public class Window {
     }
 
     private void onWindowSizeChanged(int width, int height) {
-        this.width = width;
-        this.height = height;
+        this.setWidth(width);
+        this.setHeight(height);
+        this.onWindowSizeChangedCore(width, height);
+
+        // Main app loop is waits on glfwWaitEvents while a window is being
+        // resized due to how win32 works, so this is a workaround
+        MessageQueue.INSTANCE.processQueue();
+    }
+
+    private void onWindowSizeChangedCore(int width, int height) {
         this.setupViewport();
-        Main.onWindowSizeChanged();
+        this.measure(width, height);
+        this.arrange(0, 0, width, height);
+        this.invalidateVisual();
+        this.updateLayoutAndRender();
+    }
+
+    private void updateLayoutAndRender() {
+        LayoutManager.getLayoutManager().updateLayout();
+        this.draw();
+    }
+
+    @Override
+    protected Vector2d measureOverride(double availableWidth, double availableHeight) {
+        Vector2d measure = super.measureOverride(availableWidth, availableHeight);
+        for (int i = 0; i < this.getVisualChildrenCount(); i++) {
+            UIComponent child = this.getVisualChild(i);
+            child.measure(availableWidth, availableHeight);
+            measure.x = Math.max(measure.x, child.getDesiredWidth());
+            measure.y = Math.max(measure.y, child.getDesiredHeight());
+        }
+
+        return measure;
+    }
+
+    @Override
+    protected Vector2d arrangeOverride(double availableWidth, double availableHeight) {
+        Vector2d arrange = super.arrangeOverride(availableWidth, availableHeight);
+        for (int i = 0; i < this.getVisualChildrenCount(); i++) {
+            UIComponent child = this.getVisualChild(i);
+            child.arrange(0, 0, availableWidth, availableHeight);
+            arrange.x = Math.max(arrange.x, child.getDesiredWidth());
+            arrange.y = Math.max(arrange.y, child.getDesiredHeight());
+        }
+
+        arrange.x = Math.max(arrange.x, this.getWidth());
+        arrange.y = Math.max(arrange.y, this.getHeight());
+        return arrange;
     }
 
     private void setupViewport() {
-        GL11.glViewport(0, 0, this.width, this.height);
+        GL11.glViewport(0, 0, (int) this.getWidth(), (int) this.getHeight());
         GL11.glClear(GL11.GL_COLOR_BUFFER_BIT | GL11.GL_DEPTH_BUFFER_BIT);
         GL11.glMatrixMode(GL11.GL_PROJECTION);
         GL11.glLoadIdentity();
-        GL11.glOrtho(0, this.width, this.height, 0, -1d, 1d);
+        GL11.glOrtho(0, this.getWidth(), this.getHeight(), 0, -1d, 1d);
         GL11.glMatrixMode(GL11.GL_MODELVIEW);
     }
 
@@ -99,10 +155,6 @@ public class Window {
         MessageQueue.INSTANCE.pushMessage(WindowClosedMessage, 0);
     }
 
-    public void onShowInternal() {
-
-    }
-
     public void swapBuffers() {
         glfwSwapBuffers(this.handle);
     }
@@ -112,6 +164,10 @@ public class Window {
     }
 
     public void draw() {
-        Main.onReDrawApplicationWindow();
+        GL11.glClear(GL11.GL_COLOR_BUFFER_BIT | GL11.GL_DEPTH_BUFFER_BIT);
+        GL11.glPushMatrix();
+        drawRecursive(this);
+        GL11.glPopMatrix();
+        this.swapBuffers();
     }
 }
