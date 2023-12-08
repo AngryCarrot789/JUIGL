@@ -1,7 +1,5 @@
 package reghzy.juigl.core.dependency;
 
-import reghzy.juigl.core.utils.Size;
-
 import java.util.Objects;
 
 public final class DependencyPropertyPath {

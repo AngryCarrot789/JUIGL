@@ -19,13 +19,32 @@ public class MessageQueue {
     private final AtomicBoolean isMessageQueued;
     private final AtomicBoolean isProcessing;
     private final HashMap<Integer, MessageHandler> handlerMap;
+    private long hiddenWindowHandle;
     private int nextId = 1;
+
+    public boolean IsProcessingEvents;
 
     public MessageQueue() {
         this.isMessageQueued = new AtomicBoolean(false);
         this.isProcessing = new AtomicBoolean(false);
         this.handlerMap = new HashMap<>();
         this.messageQueue = new ConcurrentLinkedQueue<>();
+    }
+
+    private long getHiddenWindowHandle() {
+        if (this.hiddenWindowHandle == 0) {
+            GLFW.glfwWindowHint(GLFW.GLFW_RESIZABLE, GLFW.GLFW_FALSE);
+            GLFW.glfwWindowHint(GLFW.GLFW_VISIBLE, GLFW.GLFW_FALSE);
+            GLFW.glfwWindowHint(GLFW.GLFW_DECORATED, GLFW.GLFW_FALSE);
+            GLFW.glfwWindowHint(GLFW.GLFW_MOUSE_PASSTHROUGH, GLFW.GLFW_TRUE);
+            this.hiddenWindowHandle = GLFW.glfwCreateWindow(1, 1, "", 0, 0);
+            GLFW.glfwDefaultWindowHints();
+            if (this.hiddenWindowHandle == 0) {
+                throw new RuntimeException("Failed to create message queue hidden window");
+            }
+        }
+
+        return this.hiddenWindowHandle;
     }
 
     public int registerMessage(MessageHandler handler) {

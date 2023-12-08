@@ -1,7 +1,5 @@
 package reghzy.juigl.core.utils;
 
-import com.sun.org.apache.xml.internal.serializer.ToStream;
-
 import java.text.MessageFormat;
 
 public final class Thickness {

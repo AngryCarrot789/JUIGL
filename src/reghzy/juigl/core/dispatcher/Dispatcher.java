@@ -79,34 +79,34 @@ public final class Dispatcher {
         }
     }
 
-    public Future<Void> invokeLater(Runnable runnable) {
-        return this.invokeLater(runnable, DispatchPriority.Send);
+    public Future<Void> invokeAsync(Runnable runnable) {
+        return this.invokeAsync(runnable, DispatchPriority.Send);
     }
 
-    public Future<Void> invokeLater(Runnable runnable, DispatchPriority priority) {
+    public Future<Void> invokeAsync(Runnable runnable, DispatchPriority priority) {
         if (priority == DispatchPriority.Send && this.isCurrentThread()) {
             runnable.run();
             return CompletableFuture.completedFuture(null);
         }
         else {
-            return this.invokeInternal(StandardRunnableHandler.getInstance(), runnable, null, priority);
+            return this.invokeAsyncInternal((DispatchOperationHandler<Void>) StandardRunnableHandler.INSTANCE, runnable, null, priority);
         }
     }
 
-    public <R, T> Future<T> invokeLater(Function<R, T> function, R parameter) {
-        return this.invokeLater(function, parameter, DispatchPriority.Send);
+    public <R, T> Future<T> invokeAsync(Function<R, T> function, R parameter) {
+        return this.invokeAsync(function, parameter, DispatchPriority.Send);
     }
 
-    public <R, T> Future<T> invokeLater(Function<R, T> function, R parameter, DispatchPriority priority) {
+    public <R, T> Future<T> invokeAsync(Function<R, T> function, R parameter, DispatchPriority priority) {
         if (priority == DispatchPriority.Send && this.isCurrentThread()) {
             return CompletableFuture.completedFuture(function.apply(parameter));
         }
         else {
-            return this.invokeInternal(StandardFunctionHandler.getInstance(), function, parameter, priority);
+            return this.invokeAsyncInternal((DispatchOperationHandler<T>) StandardFunctionHandler.INSTANCE, function, parameter, priority);
         }
     }
 
-    public <T> DispatcherOperation<T> invokeInternal(DispatchOperationHandler<T> handler, Object param0, Object param1, DispatchPriority priority) {
+    public <T> DispatcherOperation<T> invokeAsyncInternal(DispatchOperationHandler<T> handler, Object param0, Object param1, DispatchPriority priority) {
         DispatcherOperation<T> operation = new DispatcherOperation<T>(this, priority, handler, param0, param1);
         this.enqueue(operation);
         return operation;
@@ -127,11 +127,7 @@ public final class Dispatcher {
     }
 
     private static final class StandardRunnableHandler implements DispatchOperationHandler {
-        private static final StandardRunnableHandler INSTANCE = new StandardRunnableHandler();
-
-        public static <T> DispatchOperationHandler<T> getInstance() {
-            return INSTANCE;
-        }
+        public static final StandardRunnableHandler INSTANCE = new StandardRunnableHandler();
 
         @Override
         public Object invoke(Object param0, Object param1) {
@@ -141,11 +137,7 @@ public final class Dispatcher {
     }
 
     private static final class StandardFunctionHandler implements DispatchOperationHandler {
-        private static final StandardFunctionHandler INSTANCE = new StandardFunctionHandler();
-
-        public static <T> DispatchOperationHandler<T> getInstance() {
-            return INSTANCE;
-        }
+        public static final StandardFunctionHandler INSTANCE = new StandardFunctionHandler();
 
         @Override
         public Object invoke(Object param0, Object param1) {

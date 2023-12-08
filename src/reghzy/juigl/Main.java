@@ -1,6 +1,5 @@
 package reghzy.juigl;
 
-import org.lwjgl.PointerBuffer;
 import org.lwjgl.glfw.GLFW;
 import org.lwjgl.opengl.GL11;
 import reghzy.juigl.core.LayoutManager;
@@ -76,14 +75,17 @@ public class Main {
             // if you resize a window a bit but then don't move your mouse all within 2s of
             // running the app, the dispatcher won't run until you release the LMB or you
             // move your mouse again. This is due to how Win32 works... and i'm not sure how too get around it
-            mainWindow.getDispatcher().invokeLater(() -> mainWindow.setWidth(1000));
+            mainWindow.getDispatcher().invokeAsync(() -> mainWindow.setWidth(1000));
         }).start();
 
         System.out.println("App main");
         isAppRunning = true;
         do {
+            MessageQueue.INSTANCE.IsProcessingEvents = true;
             GLFW.glfwWaitEvents();
+            MessageQueue.INSTANCE.IsProcessingEvents = false;
             MessageQueue.INSTANCE.processQueue();
+            // System.out.println(System.currentTimeMillis());
         } while (isAppRunning);
 
         GLFW.glfwTerminate();

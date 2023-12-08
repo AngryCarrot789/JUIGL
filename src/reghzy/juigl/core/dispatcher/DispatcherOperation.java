@@ -9,12 +9,10 @@ public class DispatcherOperation<T> implements Future<T> {
     private final DispatchOperationHandler<T> handler;
     private final DispatchPriority priority;
     private final Dispatcher dispatcher;
-    private final Object param0;
-    private final Object param1;
+    private final Object param0, param1;
     private T retValue;
 
-    private volatile boolean isCompleted;
-    private volatile boolean isOperationCancelled;
+    private volatile int flags; // 0: inactive, 1: success, 2: cancelled. flags != 0: completed
     private Throwable exception;
 
     public DispatcherOperation(Dispatcher dispatcher, DispatchPriority priority, DispatchOperationHandler<T> handler) {
@@ -48,37 +46,38 @@ public class DispatcherOperation<T> implements Future<T> {
         return this.exception;
     }
 
-    void invoke() {
-        if (this.isOperationCancelled) {
-            return;
-        }
+    public T getReturnValue() {
+        return this.retValue;
+    }
 
-        try {
-            this.retValue = this.handler.invoke(this.param0, this.param1);
-        }
-        catch (Exception e) {
-            this.exception = e;
-        }
-        finally {
-            this.isCompleted = true;
+    void invoke() {
+        if (this.flags == 0) {
+            try {
+                this.retValue = this.handler.invoke(this.param0, this.param1);
+            }
+            catch (Exception e) {
+                this.exception = e;
+            }
+            finally {
+                this.flags = 1;
+            }
         }
     }
 
     @Override
     public boolean cancel(boolean mayInterruptIfRunning) {
-        this.isOperationCancelled = true;
-        this.isCompleted = true;
+        this.flags = 2;
         return false;
     }
 
     @Override
     public boolean isCancelled() {
-        return this.isOperationCancelled;
+        return this.flags == 2;
     }
 
     @Override
     public boolean isDone() {
-        return this.isCompleted;
+        return this.flags != 0;
     }
 
     private void throwIfOnDispatcherThread() throws ExecutionException {
@@ -90,28 +89,31 @@ public class DispatcherOperation<T> implements Future<T> {
     @Override
     public T get() throws InterruptedException, ExecutionException {
         this.throwIfOnDispatcherThread();
-        while (!this.isCompleted)
+        while (this.flags == 0)
             Thread.sleep(1);
         return this.getValueInternal();
     }
 
     @Override
     public T get(long timeout, TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException {
+        // TODO: maybe implement dispatcher frames, push new frame here?
         this.throwIfOnDispatcherThread();
-        // TODO: this is horrible but it works for now. Maybe use similar code from ForkJoinTask?
-        if (timeout > 0) {
-            long beginMillis = System.currentTimeMillis(), endMillis = (beginMillis + unit.toMillis(timeout));
-            while (!this.isCompleted && beginMillis < endMillis) {
-                Thread.sleep(1);
-            }
+        if (this.flags == 0) {
+            if (timeout > 0) {
+                // TODO: this is horrible but it works for now. Maybe use similar code from ForkJoinTask?
+                long endMillis = System.currentTimeMillis() + unit.toMillis(timeout);
+                while (this.flags == 0 && System.currentTimeMillis() < endMillis) {
+                    Thread.sleep(1);
+                }
 
-            if (!this.isCompleted) {
-                throw new TimeoutException("Timed out waiting for dispatcher operation to complete");
+                if (this.flags == 0) {
+                    throw new TimeoutException("Timed out waiting for dispatcher operation to complete");
+                }
             }
-        }
-        else {
-            while (!this.isCompleted) {
-                Thread.sleep(1);
+            else {
+                while (this.flags == 0) {
+                    Thread.sleep(1);
+                }
             }
         }
 

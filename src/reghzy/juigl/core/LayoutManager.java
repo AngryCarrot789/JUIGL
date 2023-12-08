@@ -1,15 +1,10 @@
 package reghzy.juigl.core;
 
-import reghzy.juigl.Main;
 import reghzy.juigl.core.dispatcher.DispatchPriority;
 import reghzy.juigl.core.dispatcher.Dispatcher;
-import reghzy.juigl.core.render.ComponentRenderData;
 import reghzy.juigl.core.ui.UIComponent;
-import reghzy.juigl.utils.Maths;
 
-import javax.swing.text.StyledEditorKit;
 import java.util.ArrayList;
-import java.util.Comparator;
 
 public class LayoutManager {
     public final LayoutQueue measureQueue;
@@ -39,7 +34,7 @@ public class LayoutManager {
         }
 
         this.isLayoutRequested = true;
-        Dispatcher.getDispatcher().invokeLater(o -> {
+        Dispatcher.getDispatcher().invokeAsync(o -> {
             o.updateLayout();
             return null;
         }, this, DispatchPriority.Render);
