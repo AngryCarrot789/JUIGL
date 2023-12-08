@@ -78,11 +78,11 @@ public class MessageQueue {
         }
     }
 
-    public void pushMessage(int msg, int param) {
+    public void sendMessage(int msg, int param) {
         this.pushMessageInternal((long) msg | ((long) param << 32));
     }
 
-    public void pushMessage(int msg) {
+    public void sendMessage(int msg) {
         this.pushMessageInternal(msg);
     }
 

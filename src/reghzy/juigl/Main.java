@@ -15,32 +15,22 @@ import java.awt.*;
 
 public class Main {
     public static Window mainWindow;
-    private static PointerBuffer pBuffer;
     private static volatile boolean isAppRunning;
 
-    public static void printLastError() {
-        if (GLFW.glfwGetError(pBuffer) != GL11.GL_NO_ERROR) {
-            System.out.println(pBuffer.getStringUTF8());
-            pBuffer.clear();
-        }
-    }
-
     public static void main(String[] args) {
-        pBuffer = PointerBuffer.allocateDirect(8192);
+        System.out.println("GLFW init");
         if (!GLFW.glfwInit()) {
             System.out.println("Failed to init glfw");
             return;
         }
 
+        System.out.println("Creating window...");
         mainWindow = new Window();
         mainWindow.setWidth(1280);
         mainWindow.setHeight(720);
         mainWindow.show();
 
-        printLastError();
-        // glEnable(GL13.GL_MULTISAMPLE);
-
-        printLastError();
+        // GL11.glEnable(GL13.GL_MULTISAMPLE);
 
         GL11.glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
         GL11.glEnable(GL11.GL_CULL_FACE);
@@ -48,7 +38,6 @@ public class Main {
         // GL11.glEnable(GL11.GL_DEPTH_TEST);
         // GL11.glDepthFunc(GL11.GL_LESS);
         // GL11.glDepthMask(true);
-        printLastError();
 
         // define UI
 
@@ -71,16 +60,6 @@ public class Main {
         stretchComp.setBackgroundColour(new Color(45, 45, 45));
         mainWindow.addChild(stretchComp);
 
-        // test to make sure dependency property system works
-        UIComponent cmp = new UIComponent();
-        System.out.println(cmp.getMargin());
-        System.out.println(cmp.getWidth());
-        System.out.println(cmp.getHeight());
-        System.out.println(cmp.getHorizontalAlignment());
-        System.out.println(cmp.getVerticalAlignment());
-
-        // mainWindow.invalidateMeasure();
-        // mainWindow.invalidateArrange();
         mainWindow.invalidateVisual();
         mainWindow.arrange(0, 0, mainWindow.getWidth(), mainWindow.getHeight());
         LayoutManager.getLayoutManager().updateLayout();
@@ -88,15 +67,19 @@ public class Main {
 
         new Thread(() -> {
             try {
-                Thread.sleep(1000);
+                Thread.sleep(2000);
             }
             catch (InterruptedException e) {
                 e.printStackTrace();
             }
 
+            // if you resize a window a bit but then don't move your mouse all within 2s of
+            // running the app, the dispatcher won't run until you release the LMB or you
+            // move your mouse again. This is due to how Win32 works... and i'm not sure how too get around it
             mainWindow.getDispatcher().invokeLater(() -> mainWindow.setWidth(1000));
         }).start();
 
+        System.out.println("App main");
         isAppRunning = true;
         do {
             GLFW.glfwWaitEvents();

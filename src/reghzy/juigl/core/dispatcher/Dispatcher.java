@@ -1,9 +1,7 @@
 package reghzy.juigl.core.dispatcher;
 
-import reghzy.juigl.core.msg.MessageHandler;
 import reghzy.juigl.core.msg.MessageQueue;
 
-import javax.swing.text.StyledEditorKit;
 import java.util.ArrayList;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -125,7 +123,7 @@ public final class Dispatcher {
     }
 
     private void requestProcessing() {
-        MessageQueue.INSTANCE.pushMessage(MessageKey);
+        MessageQueue.INSTANCE.sendMessage(MessageKey);
     }
 
     private static final class StandardRunnableHandler implements DispatchOperationHandler {

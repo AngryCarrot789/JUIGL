@@ -24,7 +24,6 @@ public class Window extends Panel {
     private boolean isEventUpdatingSize;
 
     private static final int WindowClosedMessage = MessageQueue.INSTANCE.registerMessage((id, param) -> Main.onWindowsClosed());
-    private static final int RenderWindowMessage = MessageQueue.INSTANCE.registerMessage((id, param) -> Main.onWindowsClosed());
 
     public Window() {
         this.title = "My window!";
@@ -78,7 +77,7 @@ public class Window extends Panel {
 
         GLFW.glfwDestroyWindow(this.handle);
         this.handle = 0;
-        MessageQueue.INSTANCE.pushMessage(WindowClosedMessage, 0);
+        MessageQueue.INSTANCE.sendMessage(WindowClosedMessage, 0);
     }
 
     private void onWindowClosedInternal() {
@@ -86,13 +85,19 @@ public class Window extends Panel {
     }
 
     private void onWindowSizeChanged(int width, int height) {
-        this.setWidth(width);
-        this.setHeight(height);
-        this.onWindowSizeChangedCore(width, height);
+        this.isEventUpdatingSize = true;
+        try {
+            this.setWidth(width);
+            this.setHeight(height);
+            this.onWindowSizeChangedCore(width, height);
 
-        // Main app loop is waits on glfwWaitEvents while a window is being
-        // resized due to how win32 works, so this is a workaround
-        MessageQueue.INSTANCE.processQueue();
+            // Main app loop is waits on glfwWaitEvents while a window is being
+            // resized due to how win32 works, so this is a workaround
+            MessageQueue.INSTANCE.processQueue();
+        }
+        finally {
+            this.isEventUpdatingSize = false;
+        }
     }
 
     private void onWindowSizeChangedCore(int width, int height) {
@@ -152,11 +157,7 @@ public class Window extends Panel {
 
     public void close() {
         GLFW.glfwSetWindowShouldClose(this.handle, true);
-        MessageQueue.INSTANCE.pushMessage(WindowClosedMessage, 0);
-    }
-
-    public void swapBuffers() {
-        glfwSwapBuffers(this.handle);
+        MessageQueue.INSTANCE.sendMessage(WindowClosedMessage, 0);
     }
 
     public boolean isWindowOpen() {
@@ -168,6 +169,6 @@ public class Window extends Panel {
         GL11.glPushMatrix();
         drawRecursive(this);
         GL11.glPopMatrix();
-        this.swapBuffers();
+        glfwSwapBuffers(this.handle);
     }
 }
